@@ -1,72 +1,108 @@
-import React, { useState } from 'react';
-import './App.css';
+/**
+ * Harry Wolff React Hooks tutorial.
+ * @see https://www.youtube.com/watch?v=YKmiLcXiMMo
+ * @see https://hswolff.com/blog/react-hooks/
+ */
 
-function Todo({todo, index, completeTodo, removeTodo}) {
+import React, { useReducer, useContext, useEffect, useRef, } from 'react';
+
+function appReducer(state, action) {
+  switch (action.type) {
+    case 'reset':
+      return action.payload;
+    case 'add':
+      return [
+        ...state,
+        {
+          id: Date.now(),
+          text: '',
+          completed: false,
+        },
+      ];
+    case 'edit': {
+      const { id, text, } = action.payload;
+      return state.map(item => {
+        if (item.id === id) {
+          return { ...item, text, };
+        }
+        return item;
+      });
+    }
+    case 'delete':
+      return state.filter(item => item.id !== action.payload);
+    case 'completed':
+      return state.map(item => {
+        if (item.id === action.payload) {
+          return {
+            ...item,
+            completed: !item.completed,
+          }
+        }
+        return item;
+      });
+    default:
+      return state;
+  } 
+}
+
+const Context = React.createContext();
+
+function useEffectOnce(cb) {
+  const didRun = useRef(false);
+
+  useEffect(() => {
+    if (!didRun.current) {
+      cb();
+      didRun.current = true;
+    }
+  });
+}
+
+export default function TodosApp() {
+  const [ state, dispatch, ] = useReducer(appReducer, []);
+
+  useEffectOnce(() => {
+    const raw = localStorage.getItem('data');
+    dispatch({ type: 'reset', payload: JSON.parse(raw)});
+  });
+
+  useEffect(
+    () => {
+      localStorage.setItem('data', JSON.stringify(state))
+    },
+    [state]
+  );
+
   return (
-    <div style={{textDecoration: todo.isCompleted ? 'line-through' : ''}} className="todo">
-      {todo.text}
-      <div>
-        <button onClick={() => completeTodo(index)}>Complete</button>
-        <button onClick={() => removeTodo(index)}>x</button>
-      </div>
-    </div>
+    <Context.Provider value={dispatch}>
+      <h1>Todos App</h1>
+      <button onClick={() => dispatch({ type: 'add'})}>New Todo</button>
+      <br />
+      <br />
+      <TodosList items={state} />
+    </Context.Provider>
   );
 }
 
-function TodoForm({addTodo}) {
-  const [value, setValue] = useState('');
-
-  const handleSubmit = e => {
-    e.preventDefault();
-    if (!value) return;
-    addTodo(value);
-    setValue('');
-  };
-
+function TodosList({ items }) {
+  return items.map(item => <TodoItem key={item.id} {...item} /> );
+}
+ 
+function TodoItem({ id, completed, text }) {
+  const dispatch = useContext(Context);
   return (
-    <form className="form" onSubmit={handleSubmit}>
-      <input 
-        className="input"
-        onChange={e => setValue(e.target.value)}
-        placeholder="Add todo..."
-        type="text"
-        value={value} />
-    </form>
+    <div
+      style={{
+        display: 'flex',
+        flexDirection: 'row',
+        justifyContent: 'space-between'
+      }}
+    >
+      <input type="checkbox" checked={completed} onChange={() => dispatch({ type: 'completed', payload: id, })} />
+      <input type="text" defaultValue={text} onInput={e => dispatch({ 
+        type: 'edit', 
+        payload: { id, text: e.target.value }})} />
+      <button onClick={() => dispatch({ type: 'delete', payload: id, })}>Delete</button>
+    </div>
   );
 }
-
-function App() {
-  const [todos, setTodos] = useState([
-    { text: 'Learn about React', isCompleted: false, },
-    { text: 'Meet friend for lunch', isCompleted: false, },
-    { text: 'Build really cool todo app', isCompleted: false, }
-  ]);
-
-  const addTodo = text => {
-    const newTodos = [ ...todos, {text, isCompleted: false, }];
-    setTodos(newTodos);
-  }
-
-  const completeTodo = index => {
-    const newTodos = [ ...todos ];
-    newTodos[index].isCompleted = true;
-    setTodos(newTodos);
-  };
-
-  const removeTodo = index => {
-    const newTodos = [ ...todos ];
-    newTodos.splice(index, 1);
-    setTodos(newTodos);
-  };
-
-  return (<div className="app">
-    <div className="todo-list">
-      {todos.map((todo, index) => (
-        <Todo key={index} index={index} todo={todo} completeTodo={completeTodo} removeTodo={removeTodo} />
-      ))}
-      <TodoForm addTodo={addTodo} />
-    </div>
-  </div>);
-}
-
-export default App;
